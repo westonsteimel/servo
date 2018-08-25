@@ -429,7 +429,7 @@ pub struct ScriptThread {
     /// events in the event queue.
     chan: MainThreadScriptChan,
 
-    dom_manipulation_task_sender: Sender<MainThreadScriptMsg>,
+    dom_manipulation_task_sender: Box<ScriptChan>,
 
     user_interaction_task_sender: Sender<MainThreadScriptMsg>,
 
@@ -874,7 +874,7 @@ impl ScriptThread {
             port: port,
 
             chan: MainThreadScriptChan(chan.clone()),
-            dom_manipulation_task_sender: chan.clone(),
+            dom_manipulation_task_sender: boxed_script_sender.clone(),
             user_interaction_task_sender: chan.clone(),
             networking_task_sender: boxed_script_sender.clone(),
             file_reading_task_sender: boxed_script_sender.clone(),
@@ -2692,7 +2692,14 @@ impl ScriptThread {
     }
 
     fn perform_a_microtask_checkpoint(&self) {
-        self.microtask_queue.checkpoint(|id| self.documents.borrow().find_global(id))
+        let documents = self.documents.borrow();
+
+        self.microtask_queue.checkpoint(
+            |id| documents.find_global(id),
+            documents.iter()
+                     .map(|(_id, document)| document.global())
+                     .collect()
+        )
     }
 }
 
